@@ -7,7 +7,9 @@
 #       docker pull python:3.11-slim && docker inspect --format='{{index .RepoDigests 0}}' python:3.11-slim
 #   Then replace the two FROM lines below with the digest form:
 #       FROM python@sha256:<digest> AS builder
-FROM python:3.11-slim AS builder
+
+FROM --platform=linux/amd64 python:3.11-slim@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534 AS builder
+#FROM python:3.11-slim AS builder
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -21,11 +23,15 @@ COPY requirements.txt ./
 # It turns a silently-substituted package into a build failure, which is what you want.
 RUN pip install --prefix=/install -r requirements.txt
 
-
-FROM python:3.11-slim AS runtime
+# [修正1] 這裡將 AS builder 改成 AS runtime，避免覆蓋第一階段
+FROM --platform=linux/amd64 python:3.11-slim@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534 AS runtime
+#FROM python:3.11-slim AS runtime
 
 # Non-root. A training container has no reason to run as root, and graders check.
-RUN useradd --create-home --uid 10001 runner
+# [修正2] 在這裡新增建立 /app 目錄，並賦予 runner 權限，解決 mlflow.db 權限不足的報錯
+RUN useradd --create-home --uid 10001 runner && \
+    mkdir -p /app && chown -R runner:runner /app
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app
